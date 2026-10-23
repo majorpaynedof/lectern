@@ -1,0 +1,54 @@
+# Builds the Windows app and its installer on GitHub's free Windows machines.
+#
+# - Every push to main: the installer is attached to the run as the
+#   "lectern-installer" artifact (Actions tab -> the run -> Artifacts).
+# - Pushing a version tag (git tag v0.6.0 && git push origin v0.6.0): also
+#   creates a GitHub Release with the installer attached, for people to
+#   download.
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create releases
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # Fills in any Windows platform files that aren't committed (it never
+      # overwrites files that are).
+      - name: Add Windows platform files
+        run: flutter create --platforms=windows --project-name lectern .
+
+      - run: flutter pub get
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build app and installer
+        run: powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lectern-installer
+          path: installer/output/*.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/output/*.exe
+          generate_release_notes: true
