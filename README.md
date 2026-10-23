@@ -67,18 +67,6 @@ flutter run -d linux
 - **"Cannot open source file … cpp_client_wrapper"** after switching between `flutter run` and the installer build: run `flutter clean`, then `flutter pub get`, then build again.
 - **"An Application Control policy has blocked this file":** Smart App Control is blocking the unsigned build. Turn it off on your development PC under **Windows Security → App & browser control**.
 
-## Releasing
-
-1. Bump `version:` in `pubspec.yaml`, for example `0.7.0+13`.
-2. Commit, then tag and push:
-
-   ```
-   git tag v0.7.0
-   git push origin main v0.7.0
-   ```
-
-GitHub Actions then builds the installer and publishes a Release with it attached.
-
 ## Project layout
 
 ```
