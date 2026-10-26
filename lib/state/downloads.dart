@@ -347,7 +347,7 @@ class DownloadManager extends ChangeNotifier {
           'startTime': currentTime,
           'startedAt': now,
           'mediaPlayer': 'media_kit',
-          'deviceInfo': {'clientName': AbsApi.clientName, 'deviceId': deviceId},
+          'deviceInfo': AbsApi.deviceInfo(deviceId),
         };
     entry['currentTime'] = currentTime;
     entry['timeListening'] = ((entry['timeListening'] as num?)?.toDouble() ?? 0) + listened;
@@ -363,12 +363,21 @@ class DownloadManager extends ChangeNotifier {
     for (final id in _pending.keys.toList()) {
       final s = _pending[id]!;
       try {
-        await api.syncLocalSession(s);
-        await api.updateProgress(
-          s['libraryItemId'].toString(),
-          currentTime: (s['currentTime'] as num?)?.toDouble() ?? 0,
-          duration: (s['duration'] as num?)?.toDouble() ?? 0,
-        );
+        final itemId = s['libraryItemId'].toString();
+        final updatedAt = (s['updatedAt'] as num?)?.toInt() ?? 0;
+        await api.syncLocalSession(s); // listening time, for stats
+        // Only move the position if this offline listening is newer than
+        // what the server has (another device may have carried on since).
+        final remote = await api.progressOf(itemId);
+        if (remote == null || remote.lastUpdate < updatedAt) {
+          await api.updateProgress(
+            itemId,
+            currentTime: (s['currentTime'] as num?)?.toDouble() ?? 0,
+            duration: (s['duration'] as num?)?.toDouble() ?? 0,
+          );
+        } else {
+          debugPrint('Kept the newer server position for $itemId instead of offline listening.');
+        }
         _pending.remove(id);
       } catch (e) {
         debugPrint('Could not upload offline session $id yet: $e');

@@ -8,7 +8,9 @@ import '../state/app_session.dart';
 import '../state/player_controller.dart';
 import '../state/theme_controller.dart';
 import '../theme.dart';
+import '../util.dart';
 import '../widgets/mini_player.dart';
+import '../widgets/player_notices.dart';
 import 'appearance_screen.dart';
 import 'authors_screen.dart';
 import 'downloads_screen.dart';
@@ -105,20 +107,7 @@ class _ShellState extends State<Shell> {
               ],
             ),
           ),
-          if (player.lastError != null)
-            MaterialBanner(
-              backgroundColor: context.colors.surfaceHigh,
-              content: SelectableText('Playback problem: ${player.lastError}'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    player.lastError = null;
-                    setState(() {});
-                  },
-                  child: const Text('Dismiss'),
-                ),
-              ],
-            ),
+          const PlayerNotices(),
           const SidebarTheme(child: MiniPlayer()),
         ],
       ),

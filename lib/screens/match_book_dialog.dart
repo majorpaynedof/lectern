@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models.dart';
 import '../state/app_session.dart';
+import '../state/match_finder.dart';
 import '../theme.dart';
 import '../util.dart';
 import '../widgets/cover.dart';
@@ -27,6 +28,11 @@ class _MatchDialogState extends State<_MatchDialog> {
   String _provider = 'audible';
   List<MatchResult>? _results;
   MatchResult? _selected;
+
+  /// Looser suggestions, shown when the exact search finds nothing (or on
+  /// request). Picking one works just like picking a normal result.
+  List<PossibleMatch>? _possible;
+  bool _findingPossible = false;
   bool _searching = true; // the first search starts right away
   bool _applying = false;
   bool _useCover = true;
@@ -64,6 +70,7 @@ class _MatchDialogState extends State<_MatchDialog> {
       _searching = true;
       _error = null;
       _selected = null;
+      _possible = null;
     });
     try {
       final r = await context.read<AppSession>().api!.searchBooks(
@@ -73,10 +80,31 @@ class _MatchDialogState extends State<_MatchDialog> {
             itemId: widget.book.id,
           );
       if (mounted) setState(() => _results = r);
+      // Nothing for the exact title: look for likely books instead.
+      if (r.isEmpty && mounted) _findPossible();
     } catch (e) {
       if (mounted) setState(() => _error = 'Search failed: $e');
     } finally {
       if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Future<void> _findPossible() async {
+    setState(() {
+      _findingPossible = true;
+      _selected = null;
+    });
+    try {
+      final p = await findPossibleMatches(
+        context.read<AppSession>().api!,
+        provider: _provider,
+        title: _title.text.trim(),
+        author: _author.text.trim(),
+        itemId: widget.book.id,
+      );
+      if (mounted) setState(() => _possible = p);
+    } finally {
+      if (mounted) setState(() => _findingPossible = false);
     }
   }
 
@@ -123,6 +151,79 @@ class _MatchDialogState extends State<_MatchDialog> {
         });
       }
     }
+  }
+
+  Widget _buildResults(ThemeData theme, LecternPalette pal) {
+    if (_searching) return const Center(child: CircularProgressIndicator());
+    final results = _results ?? const <MatchResult>[];
+
+    // Exact results, with a way to ask for looser suggestions underneath.
+    if (results.isNotEmpty && _possible == null) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        children: [
+          for (final r in results)
+            _ResultTile(result: r, selected: identical(r, _selected), onTap: () => setState(() => _selected = r)),
+          Center(
+            child: TextButton.icon(
+              onPressed: _findingPossible ? null : _findPossible,
+              icon: _findingPossible
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.manage_search_rounded, size: 18),
+              label: const Text('Not here? Show possible matches'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_findingPossible) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 14),
+          Text('No exact match. Looking for possible matches…', style: TextStyle(color: pal.muted)),
+        ]),
+      );
+    }
+
+    final possible = _possible;
+    if (possible == null) return const SizedBox.shrink();
+    if (possible.isEmpty && results.isEmpty) {
+      return Center(
+        child: Text('No results, even with a cleaned-up title and author. Try another source.',
+            style: TextStyle(color: pal.muted)),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      children: [
+        for (final r in results)
+          _ResultTile(result: r, selected: identical(r, _selected), onTap: () => setState(() => _selected = r)),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+          child: Text(
+            results.isEmpty
+                ? 'No exact match for "${_title.text.trim()}". Possible matches. Pick one to review it, or close to change nothing:'
+                : 'Possible matches:',
+            style: theme.textTheme.bodyMedium?.copyWith(color: pal.muted),
+          ),
+        ),
+        if (possible.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Text('None found.', style: TextStyle(color: pal.muted)),
+          ),
+        for (final p in possible)
+          _ResultTile(
+            result: p.result,
+            possible: p,
+            selected: identical(p.result, _selected),
+            onTap: () => setState(() => _selected = p.result),
+          ),
+      ],
+    );
   }
 
   @override
@@ -195,26 +296,7 @@ class _MatchDialogState extends State<_MatchDialog> {
                 ],
               ),
             ),
-            Expanded(
-              child: _searching
-                  ? const Center(child: CircularProgressIndicator())
-                  : (_results == null || _results!.isEmpty)
-                      ? Center(
-                          child: Text(
-                            _results == null ? '' : 'No results. Try a shorter title or another source.',
-                            style: TextStyle(color: pal.muted),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          itemCount: _results!.length,
-                          itemBuilder: (_, i) => _ResultTile(
-                            result: _results![i],
-                            selected: identical(_results![i], _selected),
-                            onTap: () => setState(() => _selected = _results![i]),
-                          ),
-                        ),
-            ),
+            Expanded(child: _buildResults(theme, pal)),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
@@ -253,10 +335,13 @@ class _MatchDialogState extends State<_MatchDialog> {
 }
 
 class _ResultTile extends StatelessWidget {
-  const _ResultTile({required this.result, required this.selected, required this.onTap});
+  const _ResultTile({required this.result, required this.selected, required this.onTap, this.possible});
   final MatchResult result;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Set for a suggestion from the looser search: shows why it was found.
+  final PossibleMatch? possible;
 
   @override
   Widget build(BuildContext context) {
@@ -319,6 +404,18 @@ class _ResultTile extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(color: pal.muted)),
                         ),
+                      if (possible case final p?)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              _Tag(p.closeness, strong: p.score >= 0.8),
+                              _Tag(p.reason),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -328,6 +425,25 @@ class _ResultTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _Tag extends StatelessWidget {
+  const _Tag(this.text, {this.strong = false});
+  final String text;
+  final bool strong;
+
+  @override
+  Widget build(BuildContext context) {
+    final pal = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: strong ? pal.accentSoft : pal.surfaceHigh,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(text, style: TextStyle(fontSize: 12, color: strong ? pal.accent : pal.muted)),
     );
   }
 }

@@ -326,25 +326,35 @@ class _Info extends StatelessWidget {
         Text(meta.join('  ·  '), style: theme.textTheme.bodyMedium?.copyWith(color: context.colors.muted)),
         if (started) ...[
           const SizedBox(height: 18),
-          SizedBox(
-            width: 320,
-            child: Row(
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: b.progress.clamp(0.0, 1.0).toDouble(),
-                      minHeight: 5,
-                      backgroundColor: context.colors.track,
+          // While this book is the one playing, follow the player live, so
+          // the bar is never an old copy from when the page opened.
+          ValueListenableBuilder<double>(
+            valueListenable: context.read<PlayerController>().position,
+            builder: (context, live, _) {
+              final player = context.read<PlayerController>();
+              final current = player.session?.libraryItemId == b.id ? live : b.currentTime;
+              final fraction = b.duration > 0 ? current / b.duration : b.progress;
+              return SizedBox(
+                width: 320,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: fraction.clamp(0.0, 1.0).toDouble(),
+                          minHeight: 5,
+                          backgroundColor: context.colors.track,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Text('${formatDuration(b.duration - current, compact: true)} left',
+                        style: theme.textTheme.bodySmall?.copyWith(color: context.colors.muted)),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Text('${formatDuration(b.duration - b.currentTime, compact: true)} left',
-                    style: theme.textTheme.bodySmall?.copyWith(color: context.colors.muted)),
-              ],
-            ),
+              );
+            },
           ),
         ],
         const SizedBox(height: 24),

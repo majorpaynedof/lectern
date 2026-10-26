@@ -10,6 +10,7 @@ import '../theme.dart';
 import '../util.dart';
 import '../widgets/cover.dart';
 import '../widgets/mini_player.dart' show PlayPauseButton;
+import '../widgets/player_notices.dart';
 
 /// Slides the full-screen player up over everything.
 void openPlayer(BuildContext context) {
@@ -144,6 +145,10 @@ class PlayerScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              // Messages from the player ("you listened further on another
+              // device", saving problems) show here too, not only behind
+              // this screen.
+              const Positioned(left: 0, right: 0, bottom: 0, child: PlayerNotices()),
             ],
           ),
         ),

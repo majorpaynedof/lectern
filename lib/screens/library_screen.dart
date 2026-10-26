@@ -7,7 +7,7 @@ import '../models.dart';
 import '../state/app_session.dart';
 import '../theme.dart';
 import '../widgets/book_card.dart';
-import '../widgets/bulk_progress_dialog.dart';
+import 'match_review_screen.dart';
 
 class _Sort {
   const _Sort(this.label, this.key, this.desc);
@@ -110,26 +110,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return;
     }
 
-    final updated = await runBulk<BookSummary>(
+    // Review first: nothing is saved until each book is accepted.
+    final changed = await openMatchReview(
       context,
-      title: 'Matching ${books.length} books',
-      items: books,
-      label: (b) => b.title,
-      job: (b) async {
-        final r = await api.matchBook(
-          b.id,
-          provider: options.provider,
-          overrideCover: options.replaceExisting,
-          overrideDetails: options.replaceExisting,
-        );
-        return switch (r) {
-          'updated' => BulkOutcome.updated,
-          'notfound' => BulkOutcome.notFound,
-          _ => BulkOutcome.unchanged,
-        };
-      },
+      books: books,
+      provider: options.provider,
+      suggestReplacing: options.replaceExisting,
     );
-    if (updated > 0 && mounted) _changeSort(_sort); // reload the grid with new covers
+    if (changed && mounted) _changeSort(_sort); // reload the grid with new covers
   }
 
   void _changeSort(_Sort s) {
@@ -299,8 +287,8 @@ class _MatchAllDialogState extends State<_MatchAllDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Looks up each book online and fills in missing covers and details. '
-              'Changes are saved to your server.',
+              'Looks up each book online and shows what would change, book by book. '
+              'Nothing is saved until you accept it.',
               style: TextStyle(color: pal.textSoft),
             ),
             const SizedBox(height: 18),
@@ -327,10 +315,10 @@ class _MatchAllDialogState extends State<_MatchAllDialog> {
               contentPadding: EdgeInsets.zero,
               value: _replace,
               onChanged: (v) => setState(() => _replace = v ?? false),
-              title: const Text('Replace existing details and covers'),
+              title: const Text('Also tick changes to details already filled in'),
               subtitle: Text(
-                'Fixes wrong titles and series, but a bad match will overwrite good information.',
-                style: TextStyle(color: _replace ? pal.danger : pal.muted),
+                'Normally only empty details and missing covers start ticked. You still review every change.',
+                style: TextStyle(color: pal.muted),
               ),
             ),
           ],
@@ -340,7 +328,7 @@ class _MatchAllDialogState extends State<_MatchAllDialog> {
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_MatchAllOptions(_provider, _onlyMissing, _replace)),
-          child: const Text('Start'),
+          child: const Text('Look up'),
         ),
       ],
     );

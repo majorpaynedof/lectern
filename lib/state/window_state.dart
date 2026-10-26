@@ -17,6 +17,11 @@ class WindowState with WindowListener {
   final SharedPreferences _prefs;
   Timer? _saveTimer;
 
+  /// Runs when the window is closed, before Lectern quits (closes the book
+  /// so its position is saved or kept on this PC). Limited to a few seconds.
+  static Future<void> Function()? beforeClose;
+  bool _closing = false;
+
   static Future<void> setUp() async {
     if (!(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) return;
     await windowManager.ensureInitialized();
@@ -56,6 +61,7 @@ class WindowState with WindowListener {
       await windowManager.focus();
     });
     windowManager.addListener(state);
+    await windowManager.setPreventClose(true);
   }
 
   void _scheduleSave() {
@@ -80,6 +86,23 @@ class WindowState with WindowListener {
       }
       await _prefs.setString(_key, jsonEncode(data));
     } catch (_) {}
+  }
+
+  @override
+  void onWindowClose() async {
+    if (_closing) return;
+    _closing = true;
+    try {
+      await windowManager.hide(); // feels instant; the rest finishes unseen
+      _saveTimer?.cancel();
+      await beforeClose?.call().timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Quit anyway. Positions are written to disk as you listen, so
+      // nothing important is lost.
+    } finally {
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+    }
   }
 
   @override

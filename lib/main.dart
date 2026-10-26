@@ -4,8 +4,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
+import 'api/abs_api.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell.dart';
 import 'state/app_session.dart';
@@ -22,6 +24,9 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
   _registerLicenses();
   await moveOldDataFolder(); // must run before anything reads saved data
+  try {
+    AbsApi.clientVersion = (await PackageInfo.fromPlatform()).version; // shown in server sessions
+  } catch (_) {}
   await WindowState.setUp(); // title, minimum size, remembered position
 
   final downloads = DownloadManager();
@@ -44,6 +49,7 @@ Future<void> main() async {
 
   final themes = ThemeController()..load();
   final player = PlayerController(downloads);
+  WindowState.beforeClose = player.stop; // closing the window saves your place
   MediaControls(player).start();
 
   runApp(

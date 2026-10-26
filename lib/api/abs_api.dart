@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -33,7 +34,8 @@ class AbsApi {
   final http.Client _client;
 
   static const clientName = 'Lectern';
-  static const clientVersion = '0.1.0';
+  /// Set at startup from the app's own version (see main.dart).
+  static String clientVersion = '0.0.0';
 
   static String normalizeBase(String url) {
     var u = url.trim();
@@ -295,6 +297,43 @@ class AbsApi {
     await _post('/api/session/local', session);
   }
 
+  /// What Lectern tells the server about this PC, so listening sessions
+  /// show up as "Lectern on DESKTOP-ABC" instead of an unknown device.
+  static Map<String, dynamic> deviceInfo(String deviceId) {
+    String host = 'PC';
+    String osVersion = '';
+    try {
+      host = Platform.localHostname;
+      osVersion = Platform.operatingSystemVersion;
+    } catch (_) {}
+    return {
+      'deviceId': deviceId,
+      'clientName': clientName,
+      'clientVersion': clientVersion,
+      'manufacturer': clientName,
+      'model': host,
+      'deviceName': '$clientName on $host',
+      'osName': Platform.operatingSystem,
+      'osVersion': osVersion,
+    };
+  }
+
+  /// The server's saved position for a book, or null if it has none.
+  /// `lastUpdate` is in milliseconds since 1970.
+  Future<({double currentTime, int lastUpdate})?> progressOf(String itemId) async {
+    try {
+      final d = await _get('/api/me/progress/$itemId');
+      if (d is! Map) return null;
+      return (
+        currentTime: (d['currentTime'] as num?)?.toDouble() ?? 0,
+        lastUpdate: (d['lastUpdate'] as num?)?.toInt() ?? 0,
+      );
+    } on AbsApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
   Future<void> updateProgress(String itemId, {required double currentTime, required double duration}) async {
     await _patch('/api/me/progress/$itemId', {
       'currentTime': currentTime,
@@ -406,11 +445,7 @@ class AbsApi {
   Future<PlaybackSession> startPlayback(String itemId, String deviceId,
       {bool transcode = false}) async {
     final d = await _post('/api/items/$itemId/play', {
-      'deviceInfo': {
-        'clientName': clientName,
-        'clientVersion': clientVersion,
-        'deviceId': deviceId,
-      },
+      'deviceInfo': deviceInfo(deviceId),
       'forceDirectPlay': !transcode,
       'forceTranscode': transcode,
       'supportedMimeTypes': transcode ? <String>[] : [

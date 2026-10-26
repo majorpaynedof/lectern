@@ -41,12 +41,17 @@ class BookSummary {
 
   final bool hasCover;
 
+  /// Series name(s) as the server shows them, e.g. "Bobiverse #3"; empty
+  /// when the book isn't in a series.
+  final String series;
+
   const BookSummary({
     required this.id,
     required this.title,
     required this.author,
     required this.duration,
     this.hasCover = true,
+    this.series = '',
   });
 
   factory BookSummary.fromJson(Map<String, dynamic> j) {
@@ -58,8 +63,15 @@ class BookSummary {
       author: _authorOf(md),
       duration: _d(media['duration']),
       hasCover: (media['coverPath'] ?? '').toString().isNotEmpty,
+      series: _seriesNameOf(md),
     );
   }
+}
+
+String _seriesNameOf(Map<String, dynamic> md) {
+  final name = (md['seriesName'] ?? '').toString().trim();
+  if (name.isNotEmpty) return name;
+  return seriesRefsOf(md).map((r) => r.name).where((n) => n.isNotEmpty).join(', ');
 }
 
 /// A row on the home screen ("Continue Listening", "Recently Added", ...).
@@ -232,6 +244,19 @@ class PlaybackSession {
     required this.tracks,
     required this.chapters,
   });
+
+  /// The same book and position under a new server session id (used when
+  /// the server has forgotten the old session).
+  PlaybackSession withId(String newId) => PlaybackSession(
+        id: newId,
+        libraryItemId: libraryItemId,
+        title: title,
+        author: author,
+        duration: duration,
+        currentTime: currentTime,
+        tracks: tracks,
+        chapters: chapters,
+      );
 
   factory PlaybackSession.fromJson(Map<String, dynamic> j) {
     final tracks = _list(j['audioTracks']).map((t) => AudioTrack.fromJson(_map(t))).toList()

@@ -5,6 +5,7 @@ import '../models.dart';
 import '../state/app_session.dart';
 import '../theme.dart';
 import '../widgets/series_card.dart';
+import 'series_finder_screen.dart';
 import 'series_screen.dart';
 
 class _Sort {
@@ -106,6 +107,18 @@ class _SeriesListScreenState extends State<SeriesListScreen> {
                 Expanded(
                   child: Text('Series', style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
                 ),
+                // Suggests series for books that aren't in one; only for
+                // accounts that may edit books.
+                if (context.watch<AppSession>().canEdit && !context.watch<AppSession>().offline) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      if (await openSeriesFinder(context) && mounted) _changeSort(_sort);
+                    },
+                    icon: const Icon(Icons.travel_explore_rounded, size: 18),
+                    label: const Text('Find missing series'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
                 PopupMenuButton<_Sort>(
                   tooltip: 'Sort',
                   initialValue: _sort,
