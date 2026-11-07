@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models.dart';
+import '../util.dart';
 import '../state/app_session.dart';
 import '../state/match_finder.dart';
 import '../theme.dart';
@@ -141,10 +142,15 @@ class _SeriesFinderScreenState extends State<SeriesFinderScreen> {
               provider: _provider, title: item.book.title, author: item.book.author, itemId: item.book.id);
           item.match = m;
           item.options = m == null ? [] : [for (final s in m.result.series) _optionFor(s.name, s.sequence ?? '')];
+          // Only high-confidence suggestions come ticked; tick the others
+          // yourself if they look right.
+          for (final o in item.options) {
+            o.chosen = item.confidence == 'High';
+          }
           item.status = item.options.isEmpty ? _Status.none : _Status.found;
         } catch (e) {
           item.status = _Status.failed;
-          item.message = '$e';
+          item.message = friendlyError(e, service: MetadataProvider.labelOf(_provider, _providers));
         }
         if (mounted) setState(() => _checked++);
       }
@@ -520,7 +526,7 @@ class _Card extends StatelessWidget {
                     else if (item.status == _Status.none || item.status == _Status.failed)
                       Text(
                         item.status == _Status.failed
-                            ? 'Lookup failed. Try again later.'
+                            ? (item.message ?? 'Lookup failed. Try again later.')
                             : 'No series found online. Use Edit to set one yourself, or Skip.',
                         style: TextStyle(color: pal.muted),
                       )

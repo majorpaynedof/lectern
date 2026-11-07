@@ -371,6 +371,12 @@ class ProgressKeeper {
             await _clearStore(itemId);
             lastSavedAt = _now();
             _log('Closed at ${_s(u.position)}.');
+          } else if (_gateOpen && trusted) {
+            // Already sent while checking the server just now (closing after
+            // a pause): end the session at that position.
+            await server.close(sessionId, currentTime: _base, listened: _listened, duration: _duration);
+            lastSavedAt = _now();
+            _log('Closed at ${_s(_base)}.');
           } else if (_gateOpen) {
             // Nothing trustworthy to save: close with the server's own position.
             final keep = await server.fetch(itemId);
@@ -507,6 +513,32 @@ class ProgressKeeper {
 }
 
 enum CheckResult { clear, otherDeviceAhead, unreachable }
+
+/// What to do with listening done in offline mode, once the server is back.
+enum OfflineChoice {
+  /// Nobody else has saved since: send the offline position.
+  sendOurs,
+
+  /// Another device saved since and is at or past the offline spot.
+  keepServer,
+
+  /// Another device saved since but is *behind* the offline spot: keep the
+  /// server's position for now and offer the offline one next time.
+  offerOurs,
+}
+
+/// The keeper's rule for offline listening. [server] is the server's
+/// position now (null if it has none), [base] the position the server had
+/// when the offline listening started (null if unknown), [ours] where the
+/// offline listening ended. No clocks are compared.
+OfflineChoice decideOffline({required double? server, required double? base, required double ours}) {
+  const same = ProgressKeeper.sameSpot;
+  if (server == null) return OfflineChoice.sendOurs;
+  if ((server - ours).abs() <= same) return OfflineChoice.sendOurs; // same place
+  if (base != null && (server - base).abs() <= same) return OfflineChoice.sendOurs; // nobody else saved
+  if (ours > server + same) return OfflineChoice.offerOurs;
+  return OfflineChoice.keepServer;
+}
 
 enum SaveResult { sent, keptOnThisPc, untrusted, waitingForChoice, blockedBackwards, inactive }
 

@@ -360,6 +360,18 @@ void main() {
       expect(h.keeper.active, isFalse);
     });
 
+    test('close after a pause: saved and closed at your spot, with the right message', () async {
+      final h = Harness();
+      final pos = await h.play(await h.open(), 20);
+      await h.keeper.save(pos, trusted: true);
+      h.keeper.hold('paused');
+      await h.keeper.close(pos, trusted: true);
+      expect(h.server.position, pos);
+      expect(h.server.calls.last, 'close $pos');
+      expect(h.logs.any((l) => l.contains('playback wasn\'t confirmed')), isFalse);
+      expect(h.logs.last, 'Closed at ${pos.toStringAsFixed(0)} s.');
+    });
+
     test('close after a long pause when the phone moved on keeps the phone\'s place', () async {
       final h = Harness();
       final pos = await h.play(await h.open(), 30);
@@ -438,6 +450,55 @@ void main() {
       expect(h.keeper.sessionId, 's2');
       await h.keeper.save(pos + 30, trusted: true);
       expect(h.server.calls.last, 'sync ${pos + 30}');
+    });
+  });
+
+  group('offline mode (downloaded books), uploaded when the server is back', () {
+    test('nobody else listened: the offline position is sent', () {
+      expect(decideOffline(server: 18000, base: 18000, ours: 19800), OfflineChoice.sendOurs);
+    });
+
+    test('rewound offline yourself, nobody else listened: still sent', () {
+      expect(decideOffline(server: 18000, base: 18000, ours: 600), OfflineChoice.sendOurs);
+    });
+
+    test('the phone listened further than the offline spot: the phone wins', () {
+      expect(decideOffline(server: 21000, base: 18000, ours: 19800), OfflineChoice.keepServer);
+    });
+
+    test('another app saved an earlier spot since: the offline spot is offered, not sent', () {
+      expect(decideOffline(server: 17500, base: 18000, ours: 19800), OfflineChoice.offerOurs);
+    });
+
+    test('server has no position yet: the offline position is sent', () {
+      expect(decideOffline(server: null, base: null, ours: 300), OfflineChoice.sendOurs);
+    });
+
+    test('the server already has the offline spot: nothing to decide', () {
+      expect(decideOffline(server: 19805, base: 18000, ours: 19800), OfflineChoice.sendOurs);
+    });
+
+    test('unknown starting point (older download): never overwrites a different spot', () {
+      expect(decideOffline(server: 21000, base: null, ours: 19800), OfflineChoice.keepServer);
+      expect(decideOffline(server: 17500, base: null, ours: 19800), OfflineChoice.offerOurs);
+    });
+
+    test('an offered offline spot shows up when the book is next opened', () async {
+      final h = Harness(start: 17500);
+      // What flushPending writes for OfflineChoice.offerOurs.
+      await h.store.write(const UnsentSave(
+          itemId: 'titan', sessionId: '', position: 19800, basePosition: 18000, duration: 40000, listened: 0));
+      expect(await h.open(), 17500, reason: 'starts at the server\'s spot');
+      expect(h.keeper.offlineSpot, 19800, reason: 'and offers the offline one');
+      expect(h.server.position, 17500, reason: 'nothing sent until you choose');
+    });
+
+    test('...unless the phone has since gone past it', () async {
+      final h = Harness(start: 22000);
+      await h.store.write(const UnsentSave(
+          itemId: 'titan', sessionId: '', position: 19800, basePosition: 18000, duration: 40000, listened: 0));
+      expect(await h.open(), 22000);
+      expect(h.keeper.offlineSpot, isNull);
     });
   });
 }

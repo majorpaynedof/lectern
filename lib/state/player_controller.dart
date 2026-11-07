@@ -334,6 +334,7 @@ class PlayerController extends ChangeNotifier {
           duration: s.duration,
           serverPosition: s.currentTime,
         );
+        _noteServerPosition(itemId);
         if (gen != _generation) return;
       }
 
@@ -820,15 +821,23 @@ class PlayerController extends ChangeNotifier {
     }
     if (close) {
       await keeper.close(position.value, trusted: _positionTrusted);
+      _noteServerPosition(s.libraryItemId);
       return;
     }
     final r = await keeper.save(position.value, trusted: _positionTrusted);
+    _noteServerPosition(s.libraryItemId);
     if (r == SaveResult.blockedBackwards && session?.id == s.id) {
       // The player went backwards by itself: put it back.
       final good = keeper.base;
       _distrust('position went backwards');
       _recoverTo(good);
     }
+  }
+
+  /// For downloaded books: remember what the server has, so listening done
+  /// offline later can tell whether another device has listened since.
+  void _noteServerPosition(String itemId) {
+    if (downloads.isDownloaded(itemId)) downloads.noteServerPosition(itemId, keeper.base);
   }
 
   @override

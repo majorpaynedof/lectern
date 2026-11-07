@@ -115,24 +115,27 @@ class AbsApi {
     Future<http.Response> Function() request, {
     bool retried = false,
     bool safeToRepeat = false,
+    Duration timeout = const Duration(seconds: 12),
   }) async {
     http.Response res;
     final sentWith = token;
     try {
       // Fail fast when the server can't be reached, so offline mode kicks in.
-      res = await request().timeout(const Duration(seconds: 12));
+      // (Online searches get longer: the server asks Audible, Google and
+      // others, which can be slow, especially after many lookups.)
+      res = await request().timeout(timeout);
     } on http.ClientException {
       // Usually a reused connection the server had already closed. A fresh
       // attempt almost always works; only repeat requests that are safe to.
       if (!safeToRepeat) rethrow;
       await Future<void>.delayed(const Duration(milliseconds: 300));
-      res = await request().timeout(const Duration(seconds: 12));
+      res = await request().timeout(timeout);
     }
     if (res.statusCode == 401 && !retried) {
       // Another request may already have refreshed the token while this one
       // was in flight: then just try again with the new one.
       if (token != sentWith || await _refresh()) {
-        return _send(request, retried: true, safeToRepeat: safeToRepeat);
+        return _send(request, retried: true, safeToRepeat: safeToRepeat, timeout: timeout);
       }
     }
     return _decode(res);
@@ -141,11 +144,23 @@ class AbsApi {
   Future<dynamic> _get(String path, [Map<String, String>? query]) =>
       _send(() => _client.get(_uri(path, query), headers: authHeaders), safeToRepeat: true);
 
-  Future<dynamic> _post(String path, [Object? body]) => _send(() => _client.post(
-        _uri(path),
-        headers: {...authHeaders, 'Content-Type': 'application/json'},
-        body: jsonEncode(body ?? {}),
-      ));
+  /// For online searches through the server, which can take a while.
+  static const searchTimeout = Duration(seconds: 30);
+
+  Future<dynamic> _search(String path, Map<String, String> query) => _send(
+        () => _client.get(_uri(path, query), headers: authHeaders),
+        safeToRepeat: true,
+        timeout: searchTimeout,
+      );
+
+  Future<dynamic> _post(String path, [Object? body, Duration timeout = const Duration(seconds: 12)]) => _send(
+        () => _client.post(
+          _uri(path),
+          headers: {...authHeaders, 'Content-Type': 'application/json'},
+          body: jsonEncode(body ?? {}),
+        ),
+        timeout: timeout,
+      );
 
   Future<dynamic> _patch(String path, [Object? body]) => _send(() => _client.patch(
         _uri(path),
@@ -377,7 +392,7 @@ class AbsApi {
     String author = '',
     String? itemId,
   }) async {
-    final d = await _get('/api/search/books', {
+    final d = await _search('/api/search/books', {
       'provider': provider,
       'title': title,
       'author': author,
@@ -398,7 +413,7 @@ class AbsApi {
       'provider': provider,
       'overrideCover': overrideCover,
       'overrideDetails': overrideDetails,
-    });
+    }, searchTimeout);
     if (d is Map && d['warning'] != null) return 'notfound';
     if (d is Map && d['updated'] == true) return 'updated';
     return 'unchanged';
@@ -415,18 +430,37 @@ class AbsApi {
     return all;
   }
 
-  Future<void> updateAuthor(String authorId, {String? name, String? description}) async {
+  Future<void> updateAuthor(String authorId, {String? name, String? description, String? asin}) async {
     await _patch('/api/authors/$authorId', {
       if (name != null) 'name': name,
       if (description != null) 'description': description,
+      if (asin != null) 'asin': asin,
     });
+  }
+
+  /// Looks an author up online (Audible's author pages) without saving
+  /// anything. Null if no author with a close enough name was found.
+  Future<AuthorLookup?> searchAuthor(String name) async {
+    try {
+      final d = await _search('/api/search/authors', {'q': name});
+      if (d is! Map || (d['name'] ?? '').toString().trim().isEmpty) return null;
+      return AuthorLookup.fromJson(d.cast<String, dynamic>());
+    } on AbsApiException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
+  /// Sets an author's photo from a web address (the server downloads it).
+  Future<void> setAuthorImage(String authorId, String url) async {
+    await _post('/api/authors/$authorId/image', {'url': url}, searchTimeout); // server downloads it
   }
 
   /// Looks the author up online and fills in photo and bio. Returns false
   /// if no match was found.
   Future<bool> matchAuthor(String authorId, String query) async {
     try {
-      await _post('/api/authors/$authorId/match', {'q': query});
+      await _post('/api/authors/$authorId/match', {'q': query}, searchTimeout);
       return true;
     } on AbsApiException catch (e) {
       if (e.status == 404) return false;

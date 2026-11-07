@@ -11,10 +11,10 @@ A free, open-source desktop client for [Audiobookshelf](https://www.audiobookshe
 
 - **Home, Library, Series and Authors:** your server's shelves, a searchable cover grid, series in reading order, and author pages with photos and bios.
 - **Player:** chapter list, previous and next chapter, 10 s and 30 s skip, speed from 0.75× to 3×, and a sleep timer (minutes or end of chapter). It handles books split across many files.
-- **Progress sync:** your position is saved to the server every 15 seconds and whenever you pause, so it stays in step with the phone apps.
-- **Offline downloads:** download a book and it plays from your computer. If the server can't be reached, Lectern works offline and uploads the listening you did when the server is back.
+- **Progress sync you can trust:** your position is saved every 15 seconds and whenever you pause. After a pause, sleep or lost connection, Lectern checks the server before saving again, so an old position from this PC never replaces a newer one from your phone. If another device has a different spot, Lectern asks whether to jump there or stay. Your place is also kept on your computer until the server has it, so a dropped connection or closing the app offline doesn't lose it.
+- **Offline downloads:** download a book and it plays from your computer. If the server can't be reached, Lectern works offline and uploads the listening you did when the server is back, using the same rules as progress sync, so it never overwrites a spot your phone has moved past.
 - **Listening stats:** today, last 7 and 30 days, all time, books finished, day streak and a 14-day chart.
-- **Edit and match:** fix book and author details, or match them against Audible, Google Books and other providers, one book at a time or by reviewing proposed changes for the whole library. When a title isn't found, Lectern suggests possible matches using a cleaned-up title and author. **Find missing series** looks up books that aren't in a series and suggests one. Nothing changes until you accept. This needs an account with edit permission.
+- **Edit and match:** fix book and author details, or match them against Audible, Google Books and other providers, one book at a time or by reviewing proposed changes for the whole library. When a title isn't found, Lectern suggests possible matches using a cleaned-up title and author. **Find missing series** looks up books that aren't in a series and suggests one; **Check series** finds missing or wrong book numbers and two books sharing a number. On the Authors page, **Tidy names** turns folder names like "Clancy, Tom - Op Center 01" into the real author (merging duplicates), and **Find all photos** offers photos and bios. High-confidence suggestions come ticked, but nothing changes until you accept. This needs an account with edit permission.
 - **Windows integration:** media keys, the Quick Settings media tile and the lock screen show the book and control playback. The window remembers its size and position.
 - **Every audio format, including xHE-AAC:** books that the main player can't decode, such as Audible's newer xHE-AAC files, switch automatically to Windows' own media player (Windows 11 22H2 or later).
 - **Themes:** classic light and dark themes, plus bold themes inspired by pro football and hockey team colors.
@@ -53,6 +53,8 @@ powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
 
 The installer is written to `installer\output\`.
 
+**Tests:** `flutter test` runs the automated tests: progress sync (sleep, lost connection, another device further on, offline listening), Tidy names and Check series. They take a few seconds and need no server.
+
 **Linux (for development):**
 
 ```bash
@@ -76,6 +78,9 @@ lib/
   theme.dart                color themes and component styling
   models.dart               data classes for API responses
   api/abs_api.dart          every Audiobookshelf API call
+  sync/progress_keeper.dart the rules for saving your place (tested in test/)
+  author_tidy.dart          rules for Tidy names (tested in test/)
+  series_check.dart         rules for Check series (tested in test/)
   state/                    session, player (main + Windows), downloads,
                             media controls, themes, window, data folder
   screens/                  home, library, series, authors, book, player,

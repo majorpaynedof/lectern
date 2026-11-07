@@ -5,8 +5,9 @@ import '../models.dart';
 import '../state/app_session.dart';
 import '../theme.dart';
 import '../widgets/author_avatar.dart';
-import '../widgets/bulk_progress_dialog.dart';
+import 'author_photo_review_screen.dart';
 import 'author_screen.dart';
+import 'tidy_authors_screen.dart';
 
 /// Every author in the library, with a quick name filter.
 class AuthorsScreen extends StatefulWidget {
@@ -34,6 +35,23 @@ class _AuthorsScreenState extends State<AuthorsScreen> {
     _future = context.read<AppSession>().api!.authors(widget.library.id);
   }
 
+  Future<void> _tidyNames() async {
+    final api = context.read<AppSession>().api!;
+    final List<AuthorSummary> all;
+    try {
+      all = await _future;
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+    // Review first: nothing is renamed or merged until you accept.
+    if (await openTidyAuthors(context, all) && mounted) {
+      setState(() {
+        _future = api.authors(widget.library.id);
+      });
+    }
+  }
+
   Future<void> _findAllPhotos() async {
     final api = context.read<AppSession>().api!;
     final List<AuthorSummary> all;
@@ -48,14 +66,8 @@ class _AuthorsScreenState extends State<AuthorsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Every author already has a photo.')));
       return;
     }
-    final updated = await runBulk<AuthorSummary>(
-      context,
-      title: 'Finding photos for ${missing.length} authors',
-      items: missing,
-      label: (a) => a.name,
-      job: (a) async => await api.matchAuthor(a.id, a.name) ? BulkOutcome.updated : BulkOutcome.notFound,
-    );
-    if (updated > 0 && mounted) {
+    // Review first: nothing is saved until you accept.
+    if (await openAuthorPhotoReview(context, missing) && mounted) {
       setState(() {
         _future = api.authors(widget.library.id);
       });
@@ -78,6 +90,18 @@ class _AuthorsScreenState extends State<AuthorsScreen> {
                   child: Text('Authors', style: theme.textTheme.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
                 ),
                 if (context.read<AppSession>().canEdit) ...[
+                  OutlinedButton.icon(
+                    onPressed: _tidyNames,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.colors.text,
+                      side: BorderSide(color: context.colors.border),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+                    label: const Text('Tidy names'),
+                  ),
+                  const SizedBox(width: 12),
                   OutlinedButton.icon(
                     onPressed: _findAllPhotos,
                     style: OutlinedButton.styleFrom(

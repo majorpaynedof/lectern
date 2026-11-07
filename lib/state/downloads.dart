@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../api/abs_api.dart';
 import '../models.dart';
+import '../sync/abs_progress.dart';
+import '../sync/progress_keeper.dart';
 
 /// A book saved on this computer for offline listening.
 class DownloadedBook {
@@ -23,6 +25,7 @@ class DownloadedBook {
     required this.downloadedAt,
     this.coverFile,
     this.position = 0,
+    this.serverPosition,
   });
 
   final String id;
@@ -36,6 +39,11 @@ class DownloadedBook {
   final int sizeBytes;
   final DateTime downloadedAt;
   double position; // last known position, for resuming offline
+
+  /// The position the server last had for this book, as far as this PC
+  /// knows. Offline listening is only sent if the server still has it
+  /// (otherwise another device has listened since). Null if unknown.
+  double? serverPosition;
 
   String pathOf(AudioTrack t) => '$folder${Platform.pathSeparator}${t.contentUrl}';
   String? get coverPath => coverFile == null ? null : '$folder${Platform.pathSeparator}$coverFile';
@@ -73,6 +81,7 @@ class DownloadedBook {
         'size': sizeBytes,
         'downloadedAt': downloadedAt.toIso8601String(),
         'position': position,
+        if (serverPosition != null) 'serverPosition': serverPosition,
       };
 
   static DownloadedBook fromJson(Map<String, dynamic> j, String folder) => DownloadedBook(
@@ -98,6 +107,7 @@ class DownloadedBook {
         sizeBytes: (j['size'] as num?)?.toInt() ?? 0,
         downloadedAt: DateTime.tryParse((j['downloadedAt'] ?? '').toString()) ?? DateTime.now(),
         position: (j['position'] as num?)?.toDouble() ?? 0,
+        serverPosition: (j['serverPosition'] as num?)?.toDouble(),
       );
 }
 
@@ -327,6 +337,17 @@ class DownloadManager extends ChangeNotifier {
     await _writeManifest(b);
   }
 
+  /// Remembers the position the server has for a downloaded book (called
+  /// after each successful save online).
+  Future<void> noteServerPosition(String itemId, double seconds) async {
+    final b = _books[itemId];
+    if (b == null) return;
+    final known = b.serverPosition;
+    if (known != null && (known - seconds).abs() < 1) return;
+    b.serverPosition = seconds;
+    await _writeManifest(b);
+  }
+
   /// Records listening done without a server connection.
   Future<void> recordOffline({
     required PlaybackSession session,
@@ -348,6 +369,8 @@ class DownloadManager extends ChangeNotifier {
           'startedAt': now,
           'mediaPlayer': 'media_kit',
           'deviceInfo': AbsApi.deviceInfo(deviceId),
+          // What the server had when this listening started (see flushPending).
+          'basePosition': _books[session.libraryItemId]?.serverPosition,
         };
     entry['currentTime'] = currentTime;
     entry['timeListening'] = ((entry['timeListening'] as num?)?.toDouble() ?? 0) + listened;
@@ -358,34 +381,71 @@ class DownloadManager extends ChangeNotifier {
   }
 
   /// Sends queued offline listening to the server. Safe to call often.
+  ///
+  /// Listening time is always sent (for stats). The position follows the
+  /// keeper's rule ([decideOffline]): it's only sent if no other device has
+  /// saved since the offline listening started. If another device saved an
+  /// *earlier* spot, the offline one is offered next time the book is
+  /// opened; if it saved a later one, that one stays.
   Future<void> flushPending(AbsApi api) async {
     if (_pending.isEmpty) return;
-    for (final id in _pending.keys.toList()) {
-      final s = _pending[id]!;
+    final byBook = <String, List<String>>{};
+    for (final e in _pending.entries) {
+      byBook.putIfAbsent(e.value['libraryItemId'].toString(), () => []).add(e.key);
+    }
+    for (final itemId in byBook.keys) {
+      final ids = byBook[itemId]!
+        ..sort((a, b) => _num(_pending[a]!['startedAt']).compareTo(_num(_pending[b]!['startedAt'])));
+      final latest = _pending[ids.last]!;
+      final ours = _num(latest['currentTime']);
+      final base = (_pending[ids.first]!['basePosition'] as num?)?.toDouble();
+      final duration = _num(latest['duration']);
       try {
-        final itemId = s['libraryItemId'].toString();
-        final updatedAt = (s['updatedAt'] as num?)?.toInt() ?? 0;
-        await api.syncLocalSession(s); // listening time, for stats
-        // Only move the position if this offline listening is newer than
-        // what the server has (another device may have carried on since).
         final remote = await api.progressOf(itemId);
-        if (remote == null || remote.lastUpdate < updatedAt) {
-          await api.updateProgress(
-            itemId,
-            currentTime: (s['currentTime'] as num?)?.toDouble() ?? 0,
-            duration: (s['duration'] as num?)?.toDouble() ?? 0,
-          );
-        } else {
-          debugPrint('Kept the newer server position for $itemId instead of offline listening.');
+        final choice = decideOffline(server: remote?.currentTime, base: base, ours: ours);
+        final keep = choice == OfflineChoice.sendOurs ? ours : remote!.currentTime;
+
+        // Listening time for stats. Each session carries the winning
+        // position, so the upload itself can never move you to the wrong one.
+        for (final id in ids) {
+          await api.syncLocalSession({..._pending[id]!, 'currentTime': keep}..remove('basePosition'));
         }
-        _pending.remove(id);
+        if (choice == OfflineChoice.sendOurs) {
+          await api.updateProgress(itemId, currentTime: ours, duration: duration);
+          debugPrint('Uploaded offline listening for $itemId: ${ours.toStringAsFixed(0)} s.');
+        } else if (choice == OfflineChoice.offerOurs) {
+          // Another device saved an earlier spot since. Keep it for now and
+          // let the book offer the offline spot when it's next opened.
+          await PrefsUnsentStore().write(UnsentSave(
+            itemId: itemId,
+            sessionId: '',
+            position: ours,
+            // The server has already moved on from the base, so the book
+            // offers this spot instead of sending it. (-1 if unknown; JSON
+            // can't store NaN.)
+            basePosition: base ?? -1,
+            duration: duration,
+            listened: 0,
+          ));
+          debugPrint('Another device saved ${keep.toStringAsFixed(0)} s for $itemId since; '
+              'the offline spot ${ours.toStringAsFixed(0)} s will be offered next time.');
+        } else {
+          debugPrint('Kept the server position ${keep.toStringAsFixed(0)} s for $itemId: '
+              'another device listened further than the offline ${ours.toStringAsFixed(0)} s.');
+        }
+        await noteServerPosition(itemId, keep);
+        for (final id in ids) {
+          _pending.remove(id);
+        }
       } catch (e) {
-        debugPrint('Could not upload offline session $id yet: $e');
+        debugPrint('Could not upload offline listening for $itemId yet: $e');
         break; // still offline; try again later
       }
     }
     await _writePending();
   }
+
+  static double _num(Object? v) => (v as num?)?.toDouble() ?? 0;
 
   // ------------------------------------------------------------ internals
 

@@ -83,7 +83,9 @@ class _MatchDialogState extends State<_MatchDialog> {
       // Nothing for the exact title: look for likely books instead.
       if (r.isEmpty && mounted) _findPossible();
     } catch (e) {
-      if (mounted) setState(() => _error = 'Search failed: $e');
+      if (mounted) {
+        setState(() => _error = friendlyError(e, service: MetadataProvider.labelOf(_provider, _providers)));
+      }
     } finally {
       if (mounted) setState(() => _searching = false);
     }

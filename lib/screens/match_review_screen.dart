@@ -64,8 +64,9 @@ class MatchReviewScreen extends StatefulWidget {
   final List<BookSummary> books;
   final String provider;
 
-  /// Also pre-tick changes to details that are already filled in (normally
-  /// only empty details and missing covers are pre-ticked).
+  /// Also pre-tick changes to details that are already filled in. (High
+  /// confidence matches always come fully ticked; otherwise only empty
+  /// details and missing covers are.)
   final bool suggestReplacing;
 
   @override
@@ -112,7 +113,7 @@ class _MatchReviewScreenState extends State<MatchReviewScreen> {
           }
         } catch (e) {
           item.status = _St.failed;
-          item.message = '$e';
+          item.message = friendlyError(e, service: MetadataProvider.labelOf(widget.provider));
         }
         if (mounted) setState(() {});
       }
@@ -142,6 +143,9 @@ class _MatchReviewScreenState extends State<MatchReviewScreen> {
   void _propose(_Item item, MatchResult r, double score, String how) {
     final d = item.detail!;
     final fields = <String, _Field>{};
+    // High confidence: every change comes ticked (you still press Accept).
+    // Otherwise only empty details, unless you asked to suggest replacing.
+    final high = score >= 0.9;
     void add(String key, String label, String current, String proposed, Object value, {bool compareLoosely = false}) {
       if (proposed.trim().isEmpty) return;
       final same = compareLoosely
@@ -149,7 +153,7 @@ class _MatchReviewScreenState extends State<MatchReviewScreen> {
           : _norm(current) == _norm(proposed);
       if (same) return;
       fields[key] = _Field(label, current, proposed, value,
-          chosen: current.trim().isEmpty || widget.suggestReplacing);
+          chosen: high || current.trim().isEmpty || widget.suggestReplacing);
     }
 
     String seriesLabel(Iterable<SeriesRef> s) =>
@@ -173,7 +177,7 @@ class _MatchReviewScreenState extends State<MatchReviewScreen> {
       ..how = how
       ..fields = fields
       ..coverUrl = (r.coverUrl != null && r.coverUrl!.isNotEmpty) ? r.coverUrl : null
-      ..coverChosen = !item.book.hasCover || widget.suggestReplacing
+      ..coverChosen = high || !item.book.hasCover || widget.suggestReplacing
       ..message = null;
     final anything = fields.isNotEmpty || item.coverUrl != null;
     item.status = anything ? _St.proposed : _St.upToDate;
@@ -495,7 +499,7 @@ class _NotFoundCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 8, left: 88),
             child: Text(
               item.status == _St.failed
-                  ? 'Lookup failed. Try "Look up remaining" again later.'
+                  ? '${item.message ?? 'Lookup failed.'} Then use "Look up remaining".'
                   : (item.possible.isEmpty
                       ? 'No match found, even with a cleaned-up title and author.'
                       : 'No exact match. Possible matches. Choose Review to see what would change:'),

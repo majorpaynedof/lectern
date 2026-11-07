@@ -388,6 +388,23 @@ class AuthorSummary {
       );
 }
 
+/// An author found online, before anything is saved.
+class AuthorLookup {
+  final String name;
+  final String asin;
+  final String description;
+  final String image; // web address of the photo, or empty
+
+  const AuthorLookup({required this.name, required this.asin, required this.description, required this.image});
+
+  factory AuthorLookup.fromJson(Map<String, dynamic> j) => AuthorLookup(
+        name: (j['name'] ?? '').toString(),
+        asin: (j['asin'] ?? '').toString(),
+        description: (j['description'] ?? '').toString(),
+        image: (j['image'] ?? '').toString(),
+      );
+}
+
 class AuthorDetail {
   final AuthorSummary summary;
   final String description;
@@ -424,6 +441,14 @@ class MetadataProvider {
     MetadataProvider('openlibrary', 'Open Library'),
     MetadataProvider('itunes', 'iTunes'),
   ];
+
+  /// A provider's display name ("google" -> "Google Books").
+  static String labelOf(String value, [List<MetadataProvider> list = defaults]) {
+    for (final p in [...list, ...defaults]) {
+      if (p.value == value) return p.label;
+    }
+    return value;
+  }
 }
 
 /// One search result when matching a book.

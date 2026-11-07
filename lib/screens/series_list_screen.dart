@@ -6,6 +6,7 @@ import '../state/app_session.dart';
 import '../theme.dart';
 import '../widgets/series_card.dart';
 import 'series_finder_screen.dart';
+import 'check_series_screen.dart';
 import 'series_screen.dart';
 
 class _Sort {
@@ -116,6 +117,16 @@ class _SeriesListScreenState extends State<SeriesListScreen> {
                     },
                     icon: const Icon(Icons.travel_explore_rounded, size: 18),
                     label: const Text('Find missing series'),
+                  ),
+                  const SizedBox(width: 12),
+                  // Book numbers in series you already have: missing,
+                  // different from online, or two books with the same one.
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      if (await openCheckSeries(context) && mounted) _changeSort(_sort);
+                    },
+                    icon: const Icon(Icons.fact_check_outlined, size: 18),
+                    label: const Text('Check series'),
                   ),
                   const SizedBox(width: 12),
                 ],

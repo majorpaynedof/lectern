@@ -57,7 +57,7 @@ class _AuthorScreenState extends State<AuthorScreen> {
         _toast('No match found for "${a.summary.name}". Try editing the name first.');
       }
     } catch (e) {
-      _toast('Match failed: $e');
+      _toast(friendlyError(e, service: 'Audible'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
