@@ -10,6 +10,7 @@ import '../state/theme_controller.dart';
 import '../theme.dart';
 import '../util.dart';
 import '../widgets/mini_player.dart';
+import '../widgets/update_banner.dart';
 import '../widgets/player_notices.dart';
 import 'appearance_screen.dart';
 import 'authors_screen.dart';
@@ -107,6 +108,7 @@ class _ShellState extends State<Shell> {
               ],
             ),
           ),
+          const UpdateBanner(),
           const PlayerNotices(),
           const SidebarTheme(child: MiniPlayer()),
         ],

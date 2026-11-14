@@ -11,6 +11,7 @@ import 'api/abs_api.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell.dart';
 import 'state/app_session.dart';
+import 'state/update_checker.dart';
 import 'state/data_folder.dart';
 import 'state/downloads.dart';
 import 'state/media_controls.dart';
@@ -27,6 +28,9 @@ Future<void> main() async {
   try {
     AbsApi.clientVersion = (await PackageInfo.fromPlatform()).version; // shown in server sessions
   } catch (_) {}
+  // "A new version is out" notice (asks GitHub at most once a day).
+  final updates = UpdateChecker();
+  unawaited(updates.start(AbsApi.clientVersion));
   await WindowState.setUp(); // title, minimum size, remembered position
 
   final downloads = DownloadManager();
@@ -49,8 +53,14 @@ Future<void> main() async {
 
   final themes = ThemeController()..load();
   final player = PlayerController(downloads);
-  WindowState.beforeClose = player.stop; // closing the window saves your place
-  MediaControls(player).start();
+  final mediaControls = MediaControls(player)..start();
+  // Closing the window: save your place, then shut the media controls and
+  // audio engine down before the window goes (otherwise Lectern can crash
+  // on the way out).
+  WindowState.beforeClose = () async {
+    await player.shutdown();
+    mediaControls.dispose();
+  };
 
   runApp(
     MultiProvider(
@@ -59,6 +69,7 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: themes),
         ChangeNotifierProvider.value(value: player),
         ChangeNotifierProvider.value(value: downloads),
+        ChangeNotifierProvider.value(value: updates),
       ],
       child: const LecternApp(),
     ),

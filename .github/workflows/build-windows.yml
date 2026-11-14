@@ -38,7 +38,7 @@ jobs:
       # The progress-sync rules. If these fail, nothing is built or released.
       # (Named explicitly: flutter create can add a sample test that doesn't apply.)
       - name: Run tests
-        run: flutter test test/progress_keeper_test.dart test/author_tidy_test.dart test/series_check_test.dart
+        run: flutter test test/progress_keeper_test.dart test/author_tidy_test.dart test/series_check_test.dart test/update_check_test.dart
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y

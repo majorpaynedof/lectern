@@ -346,6 +346,8 @@ class PlayerController extends ChangeNotifier {
       _positionTrusted = false;
       _expected = start;
       _target = start;
+      _startRetries = 0;
+      _startPending = true;
 
       final ready = _waitForDuration();
       if (windows) {
@@ -636,11 +638,36 @@ class PlayerController extends ChangeNotifier {
   }
 
   /// media_kit ignores seeks issued before a file has loaded, so we wait for
-  /// it to report a duration first.
+  /// it to report a duration first. After the server (or PC) has just woken
+  /// up, the first audio can take a while, so this waits up to 30 s; if it
+  /// still isn't ready, [_onPosition] seeks again once playback starts.
   Future<Duration> _waitForDuration() => (_onWindows ? _win.duration : _player.stream.duration)
       .firstWhere((d) => d > Duration.zero)
-      .timeout(const Duration(seconds: 8), onTimeout: () => Duration.zero)
+      .timeout(const Duration(seconds: 30), onTimeout: () {
+        debugPrint('The audio took more than 30 s to load; will seek again once it plays.');
+        return Duration.zero;
+      })
       .catchError((_) => Duration.zero);
+
+  /// Tries to put the player at your spot again when it started elsewhere
+  /// (usually 0:00 because the first seek came before the audio loaded).
+  int _startRetries = 0;
+
+  /// Only just after opening a book: later, "not where expected" has other
+  /// causes, handled by [_recoverTo].
+  bool _startPending = false;
+  DateTime _lastStartRetry = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void _retryStartSeek(double at) {
+    final now = DateTime.now();
+    if (!_startPending || _startRetries >= 4 || now.difference(_lastStartRetry) < const Duration(seconds: 2)) return;
+    _startRetries++;
+    _lastStartRetry = now;
+    final target = _target;
+    debugPrint('Playback started at ${at.toStringAsFixed(0)} s instead of ${target.toStringAsFixed(0)} s; '
+        'seeking again (try $_startRetries of 4).');
+    seekTo(target);
+  }
 
   void _onPlaying(bool p) {
     playing = p;
@@ -677,8 +704,12 @@ class PlayerController extends ChangeNotifier {
       if (playing && ((t - _expected).abs() < 60 || nearTarget)) {
         _positionTrusted = true;
         _untrustedSeconds = 0;
+        _startRetries = 0;
+        _startPending = false;
         debugPrint('Playback confirmed at ${t.toStringAsFixed(0)} s; saving progress is on.');
       } else {
+        // Playing, but not where it should be: put it back at your spot.
+        if (playing) _retryStartSeek(t);
         return;
       }
     } else {
@@ -840,8 +871,43 @@ class PlayerController extends ChangeNotifier {
     if (downloads.isDownloaded(itemId)) downloads.noteServerPosition(itemId, keeper.base);
   }
 
+  bool _shutDown = false;
+
+  /// Lectern is quitting: save your place, then shut the audio engines down
+  /// properly *before* the window and Flutter engine go away. Leaving libmpv
+  /// running at that point lets its threads call into an engine that no
+  /// longer exists, which crashes Lectern on exit (seen as "lectern.exe
+  /// stopped working" in Windows' problem reports).
+  Future<void> shutdown() async {
+    if (_shutDown) return;
+    try {
+      await stop(); // saves your place and ends the listening session
+    } catch (e) {
+      debugPrint('Stopping before exit failed: $e');
+    }
+    _shutDown = true;
+    for (final s in _subs) {
+      await s.cancel();
+    }
+    _subs.clear();
+    _tick?.cancel();
+    keeper.onChange = null;
+    try {
+      await _player.dispose();
+    } catch (e) {
+      debugPrint('Closing the audio engine failed: $e');
+    }
+    _win.dispose();
+    debugPrint('Audio engine shut down.');
+  }
+
   @override
   void dispose() {
+    if (_shutDown) {
+      position.dispose();
+      super.dispose();
+      return;
+    }
     for (final s in _subs) {
       s.cancel();
     }

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_info.dart';
 import '../screens/login_screen.dart' show AppLogo;
 import '../theme.dart';
+import 'update_banner.dart';
 
 /// About Lectern: version, project links, tips and open-source licences.
 class AboutCard extends StatelessWidget {
@@ -55,6 +56,8 @@ class AboutCard extends StatelessWidget {
                   'Lectern is free; if you enjoy it, a tip helps keep it going.',
                   style: TextStyle(color: pal.textSoft),
                 ),
+                const SizedBox(height: 10),
+                const UpdateSettings(),
                 const SizedBox(height: 14),
                 Wrap(
                   spacing: 10,
