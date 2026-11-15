@@ -4,8 +4,15 @@ A free, open-source desktop client for [Audiobookshelf](https://www.audiobookshe
 
 > Lectern is an unofficial client and isn't affiliated with or endorsed by the Audiobookshelf project.
 
-<!-- Screenshots: add a few to docs/ and link them here, e.g.
-![Home](docs/home.png) -->
+![Lectern's home page, with Continue Listening and Recently Added](docs/home.png)
+
+| | |
+|---|---|
+| ![Now Playing](docs/now-playing.png) | ![Library](docs/library.png) |
+| ![Series](docs/series.png) | ![Authors](docs/authors.png) |
+| ![A book's page](docs/book.png) | ![Check series: books sharing a number](docs/check-series.png) |
+| ![A book page](docs/book.png) | ![Check series, a review-first tool](docs/check-series.png) |
+| ![Themes](docs/appearance.png) | ![Downloads](docs/downloads.png) |
 
 ## Features
 
