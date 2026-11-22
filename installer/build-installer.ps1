@@ -5,7 +5,8 @@
 #
 # Needs Inno Setup 6 once:  winget install JRSoftware.InnoSetup
 # (Rust is no longer needed.)
-# The installer ends up in installer\output\Lectern-Setup-<version>.exe
+# The installer ends up in installer\output\Lectern-Setup-<version>.exe, next to
+# a portable zip (Lectern-<version>-portable.zip).
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -70,5 +71,36 @@ if (-not $iscc) {
 if ($LASTEXITCODE -ne 0) { Write-Host 'Packaging failed.' -ForegroundColor Red; exit 1 }
 
 $out = Join-Path $PSScriptRoot "output\Lectern-Setup-$version.exe"
+
+# --- 6. Portable zip: the same app, no installer. Unzip anywhere and run
+#        Lectern\lectern.exe. Sign-in, settings and downloads are still kept
+#        in the Windows user profile, as with the installed app.
+$portable = Join-Path $PSScriptRoot "output\Lectern-$version-portable.zip"
+$stage = Join-Path ([IO.Path]::GetTempPath()) ('lectern-portable-' + [guid]::NewGuid())
+try {
+    $folder = Join-Path $stage 'Lectern'
+    New-Item -ItemType Directory -Path $folder -Force | Out-Null
+    Copy-Item (Join-Path $release '*') $folder -Recurse -Force
+    @"
+Lectern $version (portable)
+
+Run lectern.exe. Nothing needs installing.
+
+Your sign-in, settings and downloaded books are kept in your Windows user
+profile, the same as the installed version, so they stay put if you move or
+delete this folder.
+
+Windows may say the app is unrecognised (it isn't code-signed yet): choose
+More info, then Run anyway.
+
+https://github.com/majorpaynedof/lectern
+"@ | Set-Content (Join-Path $folder 'README.txt') -Encoding UTF8
+    if (Test-Path $portable) { Remove-Item $portable -Force }
+    Compress-Archive -Path $folder -DestinationPath $portable -CompressionLevel Optimal
+} finally {
+    Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 Write-Host ""
 Write-Host "Done: $out" -ForegroundColor Green
+Write-Host "      $portable" -ForegroundColor Green

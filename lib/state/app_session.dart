@@ -31,6 +31,7 @@ class AppSession extends ChangeNotifier {
   String deviceId = '';
   String? username;
   bool canEdit = false; // user may change book and author details
+  bool canDelete = false; // user may delete books from the library
   List<Library> libraries = [];
   Library? currentLibrary;
   bool restoring = true;
@@ -134,6 +135,7 @@ class AppSession extends ChangeNotifier {
     final type = me['type']?.toString();
     final perms = me['permissions'];
     canEdit = type == 'root' || type == 'admin' || (perms is Map && perms['update'] == true);
+    canDelete = type == 'root' || type == 'admin' || (perms is Map && perms['delete'] == true);
     _readProgress(me);
     if (username != null) await _write('username', username);
 

@@ -7,6 +7,7 @@ import '../models.dart';
 import '../state/app_session.dart';
 import '../state/downloads.dart';
 import '../state/player_controller.dart';
+import '../state/progress_actions.dart';
 import '../state/theme_controller.dart' show TouchContext;
 import '../theme.dart';
 import '../util.dart';
@@ -151,6 +152,9 @@ class _BookScreenState extends State<BookScreen> {
                     onPlay: () => _play(),
                     onEdit: canEdit ? () => _edit(b) : null,
                     onMatch: canEdit ? () => _match(b) : null,
+                    onProgress: (action) async {
+                      if (await runProgressAction(context, itemId: b.id, title: b.title, action: action) && mounted) _reload();
+                    },
                   );
                   return wide
                       ? Row(
@@ -235,8 +239,16 @@ class _BookScreenState extends State<BookScreen> {
 final _blur = ImageFilter.blur(sigmaX: 50, sigmaY: 50);
 
 class _Info extends StatelessWidget {
-  const _Info({required this.book, required this.isCurrent, required this.onPlay, this.onEdit, this.onMatch});
+  const _Info({
+    required this.book,
+    required this.isCurrent,
+    required this.onPlay,
+    required this.onProgress,
+    this.onEdit,
+    this.onMatch,
+  });
   final BookDetail book;
+  final ValueChanged<ProgressAction> onProgress;
   final bool isCurrent;
   final VoidCallback onPlay;
   final VoidCallback? onEdit; // null when the user may not edit
@@ -395,6 +407,26 @@ class _Info extends StatelessWidget {
                 icon: const Icon(Icons.edit_rounded, size: 18),
                 label: const Text('Edit'),
               ),
+            // Your progress: finished, not finished, discard.
+            PopupMenuButton<ProgressAction>(
+              tooltip: 'More',
+              onSelected: onProgress,
+              itemBuilder: (_) => [
+                for (final a in progressActionsFor(finished: b.isFinished, started: b.currentTime > 0))
+                  PopupMenuItem(
+                    value: a,
+                    child: Row(children: [Icon(a.icon, size: 20), const SizedBox(width: 12), Text(a.label)]),
+                  ),
+              ],
+              child: Container(
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  border: Border.all(color: context.colors.border),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.more_horiz_rounded, size: 20, color: context.colors.text),
+              ),
+            ),
           ],
         ),
       ],

@@ -7,6 +7,7 @@ import '../models.dart';
 import '../state/app_session.dart';
 import '../theme.dart';
 import '../widgets/book_card.dart';
+import 'duplicates_screen.dart';
 import 'match_review_screen.dart';
 
 class _Sort {
@@ -186,6 +187,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                     icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
                     label: const Text('Match all'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                if (context.read<AppSession>().canEdit || context.read<AppSession>().canDelete) ...[
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      if (await openDuplicates(context, widget.library) && mounted) _changeSort(_sort);
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.colors.text,
+                      side: BorderSide(color: context.colors.border),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.content_copy_rounded, size: 18),
+                    label: const Text('Find duplicates'),
                   ),
                   const SizedBox(width: 12),
                 ],

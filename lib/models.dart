@@ -45,6 +45,9 @@ class BookSummary {
   /// when the book isn't in a series.
   final String series;
 
+  /// The book's folder (or file) on the server; empty if not sent.
+  final String path;
+
   const BookSummary({
     required this.id,
     required this.title,
@@ -52,6 +55,7 @@ class BookSummary {
     required this.duration,
     this.hasCover = true,
     this.series = '',
+    this.path = '',
   });
 
   factory BookSummary.fromJson(Map<String, dynamic> j) {
@@ -64,6 +68,7 @@ class BookSummary {
       duration: _d(media['duration']),
       hasCover: (media['coverPath'] ?? '').toString().isNotEmpty,
       series: _seriesNameOf(md),
+      path: (j['path'] ?? j['relPath'] ?? '').toString(),
     );
   }
 }

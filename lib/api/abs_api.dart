@@ -162,6 +162,9 @@ class AbsApi {
         timeout: timeout,
       );
 
+  Future<dynamic> _delete(String path, [Map<String, String>? query]) =>
+      _send(() => _client.delete(_uri(path, query), headers: authHeaders));
+
   Future<dynamic> _patch(String path, [Object? body]) => _send(() => _client.patch(
         _uri(path),
         headers: {...authHeaders, 'Content-Type': 'application/json'},
@@ -297,9 +300,10 @@ class AbsApi {
     return AuthorDetail.fromJson(d.cast<String, dynamic>());
   }
 
-  /// The full item as the server sends it (used for downloads).
+  /// The full item as the server sends it, with your progress (used for
+  /// downloads and Find duplicates).
   Future<Map<String, dynamic>> itemRaw(String id) async =>
-      ((await _get('/api/items/$id', {'expanded': '1'})) as Map).cast<String, dynamic>();
+      ((await _get('/api/items/$id', {'expanded': '1', 'include': 'progress'})) as Map).cast<String, dynamic>();
 
   /// The server-side download client, shared so downloads reuse connections.
   http.Client get client => _client;
@@ -355,6 +359,34 @@ class AbsApi {
       'duration': duration,
       'progress': duration > 0 ? (currentTime / duration).clamp(0.0, 1.0) : 0,
     });
+  }
+
+  /// Marks a book finished, or not finished. Note: the server itself puts a
+  /// book back to 0:00 when it's marked not finished.
+  Future<void> setFinished(String itemId, bool finished) async {
+    await _patch('/api/me/progress/$itemId', {'isFinished': finished});
+  }
+
+  /// Removes your progress for a book entirely (it leaves Continue
+  /// Listening). Does nothing if there's no progress.
+  Future<void> removeProgress(String itemId) async {
+    final Object? d;
+    try {
+      d = await _get('/api/me/progress/$itemId');
+    } on AbsApiException catch (e) {
+      if (e.status == 404) return;
+      rethrow;
+    }
+    final id = d is Map ? d['id']?.toString() : null;
+    if (id == null || id.isEmpty) return;
+    await _delete('/api/me/progress/$id');
+  }
+
+  /// Removes a book from the library. With [deleteFiles] its folder is
+  /// deleted from the server's disk too; without, the next library scan may
+  /// add it back. Needs the "delete" permission.
+  Future<void> deleteItem(String itemId, {required bool deleteFiles}) async {
+    await _delete('/api/items/$itemId', deleteFiles ? {'hard': '1'} : null);
   }
 
   Uri authorImageUri(String authorId, {int width = 300}) =>

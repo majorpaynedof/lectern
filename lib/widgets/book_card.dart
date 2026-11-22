@@ -7,6 +7,7 @@ import '../state/app_session.dart';
 import '../state/downloads.dart';
 import '../state/theme_controller.dart' show TouchContext;
 import '../state/player_controller.dart';
+import '../state/progress_actions.dart';
 import '../theme.dart';
 import 'cover.dart';
 
@@ -33,12 +34,18 @@ class _BookCardState extends State<BookCard> {
     context.read<PlayerController>().play(session.api!, session.deviceId, widget.book.id);
   }
 
-  /// Touch mode: long-press a cover for quick actions.
+  /// Quick actions: long-press a cover (touch mode) or right-click it.
   Future<void> _menu() async {
     final session = context.read<AppSession>();
     final dl = context.read<DownloadManager>();
     final id = widget.book.id;
     final pal = context.colors;
+    final progressActions = session.offline
+        ? const <ProgressAction>[]
+        : progressActionsFor(
+            finished: session.finished.contains(id),
+            started: (session.progress[id] ?? 0) > 0,
+          );
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: pal.surface,
@@ -60,6 +67,7 @@ class _BookCardState extends State<BookCard> {
               if (!session.offline && !dl.isDownloaded(id) && !dl.tasks.containsKey(id))
                 ('download', Icons.download_rounded, 'Download'),
               if (dl.isDownloaded(id)) ('remove', Icons.delete_outline_rounded, 'Remove download'),
+              for (final a in progressActions) (a.name, a.icon, a.label),
             ])
               ListTile(
                 minTileHeight: 60,
@@ -82,6 +90,12 @@ class _BookCardState extends State<BookCard> {
         dl.download(session.api!, id).catchError((_) {});
       case 'remove':
         await dl.remove(id);
+      default:
+        for (final action in ProgressAction.values) {
+          if (action.name == choice) {
+            await runProgressAction(context, itemId: id, title: widget.book.title, action: action);
+          }
+        }
     }
   }
 
@@ -101,6 +115,7 @@ class _BookCardState extends State<BookCard> {
       child: GestureDetector(
         onTap: _open,
         onLongPress: touch ? _menu : null,
+        onSecondaryTap: _menu,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
