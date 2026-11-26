@@ -57,6 +57,14 @@ class AppearanceScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(group, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                  if (group == 'Holidays')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Thanksgiving, Christmas, New Year and Valentine\'s Day. Switch back any time.',
+                        style: theme.textTheme.bodySmall?.copyWith(color: pal.muted),
+                      ),
+                    ),
                   if (group.endsWith('Inspired'))
                     Padding(
                       padding: const EdgeInsets.only(top: 4),

@@ -1,7 +1,7 @@
 name: lectern
 description: A free, open-source desktop client for Audiobookshelf (Windows & Linux).
 publish_to: "none"
-version: 0.7.3+21
+version: 0.7.4+22
 
 environment:
   sdk: ">=3.7.0 <4.0.0"   # Flutter 3.29 or newer

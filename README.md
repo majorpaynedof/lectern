@@ -26,7 +26,7 @@ A free, open-source desktop client for [Audiobookshelf](https://www.audiobookshe
 - **Windows integration:** media keys, the Quick Settings media tile and the lock screen show the book and control playback. The window remembers its size and position.
 - **Every audio format, including xHE-AAC:** books that the main player can't decode, such as Audible's newer xHE-AAC files, switch automatically to Windows' own media player (Windows 11 22H2 or later).
 - **Update notice:** Lectern checks GitHub once a day and tells you when a new version is out (Download, Later or Skip). You can turn it off under Appearance → About.
-- **Themes:** classic light and dark themes, plus bold themes inspired by pro football and hockey team colors.
+- **Themes:** classic light and dark themes, holiday themes (Thanksgiving, Christmas, New Year and Valentine's Day), plus bold themes inspired by pro football and hockey team colors.
 - **Touch mode:** bigger controls and long-press menus for touchscreen PCs.
 
 ## Install

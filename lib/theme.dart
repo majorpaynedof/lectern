@@ -252,6 +252,79 @@ class LecternPalettes {
   );
 
 
+  // Holiday themes. Each has a festive sidebar and player bar (like the
+  // team themes) over a dark, easy-to-read background.
+  static const holidays = <LecternPalette>[
+    LecternPalette(
+      id: 'holiday-thanksgiving',
+      name: 'Harvest',
+      group: 'Holidays',
+      brightness: Brightness.dark,
+      sidebar: Color(0xFF7A3A16), // russet
+      bg: Color(0xFF17100B),
+      surface: Color(0xFF21170F),
+      surfaceHigh: Color(0xFF2C1F15),
+      border: Color(0xFF3D2B1D),
+      accent: Color(0xFFE8873A), // pumpkin
+      onAccent: Color(0xFF1F0E02),
+      text: Color(0xFFF5ECE1),
+      textSoft: Color(0xFFDCCBB8),
+      muted: Color(0xFFA8957F),
+      secondaryGlow: Color(0xFFB3364A), // cranberry
+    ),
+    LecternPalette(
+      id: 'holiday-christmas',
+      name: 'Evergreen & Holly',
+      group: 'Holidays',
+      brightness: Brightness.dark,
+      sidebar: Color(0xFF165B33), // evergreen
+      bg: Color(0xFF0B1611),
+      surface: Color(0xFF12201A),
+      surfaceHigh: Color(0xFF1A2C23),
+      border: Color(0xFF27402F),
+      accent: Color(0xFFE0475A), // holly red
+      onAccent: Color(0xFFFFFFFF),
+      text: Color(0xFFF1F5F0),
+      textSoft: Color(0xFFCFDBD2),
+      muted: Color(0xFF93A79A),
+      secondaryGlow: Color(0xFFE6C15A), // gold
+    ),
+    LecternPalette(
+      id: 'holiday-new-year',
+      name: 'Midnight Champagne',
+      group: 'Holidays',
+      brightness: Brightness.dark,
+      sidebar: Color(0xFF141A3C), // midnight blue
+      bg: Color(0xFF0A0A12),
+      surface: Color(0xFF12121E),
+      surfaceHigh: Color(0xFF1B1B2B),
+      border: Color(0xFF2A2A40),
+      accent: Color(0xFFE8C468), // champagne gold
+      onAccent: Color(0xFF1A1405),
+      text: Color(0xFFF2F0EA),
+      textSoft: Color(0xFFD4D0C4),
+      muted: Color(0xFF99958A),
+      secondaryGlow: Color(0xFF9AA4FF), // silver-violet sparkle
+    ),
+    LecternPalette(
+      id: 'holiday-valentine',
+      name: 'Sweetheart',
+      group: 'Holidays',
+      brightness: Brightness.dark,
+      sidebar: Color(0xFF9E1B3C), // deep red
+      bg: Color(0xFF16090D),
+      surface: Color(0xFF210E14),
+      surfaceHigh: Color(0xFF2D131C),
+      border: Color(0xFF42202B),
+      accent: Color(0xFFFF6B9A), // pink
+      onAccent: Color(0xFF2A0612),
+      text: Color(0xFFF8ECF0),
+      textSoft: Color(0xFFE3CBD3),
+      muted: Color(0xFFAD8D98),
+      secondaryGlow: Color(0xFFFF3B5C),
+    ),
+  ];
+
   // Team-color themes. Original names only: no team names, cities,
   // mascots or logos (those are trademarks).
   static final football = [
@@ -324,7 +397,7 @@ class LecternPalettes {
     _team('Hockey Inspired', 'brass-steel', 'Brass Steel', 0xFFC69214, 0xFFC8102E),
   ];
 
-  static final all = <LecternPalette>[amber, midnight, forest, rose, arctic, oled, paper, sky, ...football, ...hockey];
+  static final all = <LecternPalette>[amber, midnight, forest, rose, arctic, oled, paper, sky, ...holidays, ...football, ...hockey];
 
   static LecternPalette byId(String? id) {
     for (final p in all) {
